@@ -1,0 +1,161 @@
+openapi: 3.1.0
+info:
+  title: Booking-system API (for conf-register)
+  version: 0.1.0
+  description: |
+    Read-only API the room-booking system exposes so the Conference Registration
+    service can list a staff member's upcoming bookings and follow changes to them.
+    See README.md alongside this file for the rationale and rules.
+servers:
+  - url: https://booking.example.internal/api/v1
+    description: Placeholder; the booking-system team fills in real URLs.
+security:
+  - serviceToken: []
+paths:
+  /bookings/{id}:
+    get:
+      summary: Get one booking (including cancelled ones)
+      operationId: getBooking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The booking. Cancelled bookings are returned with status "cancelled".
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Booking" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404":
+          description: The id has never existed. Must NOT be used to signal cancellation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /bookings:
+    get:
+      summary: List a person's upcoming active bookings, or batch-fetch bookings by id
+      description: |
+        Two mutually exclusive modes:
+        - `booked_by` (+ optional `from`): REQUIRED. Active bookings by that staff member with start >= from, sorted by start ascending. Cancelled bookings are excluded.
+        - `ids`: OPTIONAL to implement. Up to 100 ids; returns bookings in any status, and lists unknown ids in `not_found`.
+      operationId: listBookings
+      parameters:
+        - name: booked_by
+          in: query
+          schema: { type: string }
+          description: Staff identifier; same value as Booking.booked_by.
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+          description: Defaults to now. Only used with booked_by.
+        - name: ids
+          in: query
+          style: form
+          explode: false
+          schema:
+            type: array
+            maxItems: 100
+            items: { type: string }
+        - name: cursor
+          in: query
+          schema: { type: string }
+          description: Only needed if a person can have more than about 200 upcoming bookings.
+      responses:
+        "200":
+          description: Bookings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Booking" }
+                  not_found:
+                    type: array
+                    items: { type: string }
+                    description: Only in ids mode.
+                  next_cursor:
+                    type: [string, "null"]
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+      description: One read-only, service-level credential issued to conf-register (API key or OAuth2 client-credentials token).
+  schemas:
+    Booking:
+      type: object
+      required: [id, title, status, start, end, room, booked_by]
+      properties:
+        id:
+          type: string
+          description: Stable for the booking's whole life and never reused.
+        title:
+          type: string
+          description: Purpose or name the booker typed; may be empty.
+        status:
+          type: string
+          enum: [active, cancelled]
+        start:
+          type: string
+          format: date-time
+          description: ISO 8601 with offset, e.g. 2026-10-14T09:00:00+07:00
+        end:
+          type: string
+          format: date-time
+        room:
+          $ref: "#/components/schemas/Room"
+        booked_by:
+          type: string
+          description: Staff identifier of the booker. Shape TBD; must match the identity from the booking system's login.
+      example:
+        id: BK-2026-004512
+        title: ประชุมคณะกรรมการ ครั้งที่ 3/2569
+        status: active
+        start: "2026-10-14T09:00:00+07:00"
+        end: "2026-10-14T12:00:00+07:00"
+        room: { id: R-301, name: ห้องประชุม 301, location: อาคาร 3 ชั้น 3 }
+        booked_by: staff-00123
+    Room:
+      type: object
+      required: [id, name, location]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        location:
+          type: string
+          description: Building and floor, or directions.
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimited:
+      description: Rate-limited
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }

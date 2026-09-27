@@ -11,8 +11,12 @@ A reservation of one room for one time slot, owned by the room-booking system. M
 _Avoid_: Reservation, slot
 
 **Meeting**:
-An event that people register for, made up of one or more Bookings, all made by the same Organizer. It exists only once that Organizer opens registration for it.
+An event that people register for, made up of one or more Bookings, all made by the same Organizer. It exists only once that Organizer opens registration for it, and its set of Bookings is fixed from then on: a Booking can't be added or detached later, only cancelled in the booking system.
 _Avoid_: Event, conference, seminar (as a model term)
+
+**Booking Change**:
+A move, room change or cancellation of a Booking inside a Meeting, which registrants should hear about. A new title, or a renamed or relocated room that keeps its identity, is not a Booking Change.
+_Avoid_: Update, modification
 
 **Organizer**:
 The staff member who made the Bookings behind a Meeting; each Meeting has exactly one. Only the Organizer can open registration, which creates the Meeting.
